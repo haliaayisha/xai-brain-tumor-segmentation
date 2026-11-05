@@ -1,36 +1,77 @@
-# Brain Tumor Segmentation using U-Net and Explainable AI
+# Brain Tumor Segmentation Using U-Net and Explainable AI
 
-A deep learning project that explores brain tumor segmentation from MRI images using a custom U-Net architecture, with Grad-CAM visualizations to provide insight into the model's predictions.
+A deep learning project that explores brain tumor segmentation from MRI images using a custom U-Net architecture implemented in PyTorch. The project also incorporates Grad-CAM and Occlusion Sensitivity to visualize model activation patterns and investigate which image regions influence its predictions.
 
 ## Project Overview
 
-Brain tumor segmentation involves identifying and outlining tumor regions in MRI scans. This project implements a convolutional neural network based on the U-Net architecture to generate pixel-level tumor segmentation masks.
+Brain tumor segmentation involves identifying and outlining tumor regions in Magnetic Resonance Imaging (MRI) scans.
 
-It also incorporates **Gradient-weighted Class Activation Mapping (Grad-CAM)** to visualize regions of the input MRI that influence the model's predictions.
+This project implements a custom U-Net architecture to perform pixel-level segmentation of brain MRI images. The model learns to predict tumor regions using corresponding ground-truth segmentation masks.
 
-The objective is to explore both segmentation performance and model interpretability.
+In addition to segmentation, two explainability techniques are explored:
+
+- **Grad-CAM:** Visualizes activation patterns and gradient-based feature importance in an intermediate encoder layer.
+- **Occlusion Sensitivity:** Examines changes in model predictions when individual image regions are masked.
+
+The objective is to explore both segmentation performance and the interpretability of deep learning models in medical imaging.
 
 ## Key Features
 
-- Brain MRI image segmentation using a custom U-Net.
+- Brain MRI segmentation using a custom U-Net.
 - Pixel-level tumor mask prediction.
+- Encoder-decoder architecture with skip connections.
 - Combined Binary Cross-Entropy and Dice Loss.
-- Grad-CAM-based visual explanations.
-- Visualization of MRI images, predicted masks, and activation heatmaps.
+- Training, validation and testing pipeline.
+- Dice coefficient and Intersection over Union (IoU) evaluation.
+- Grad-CAM-based activation visualization.
+- Occlusion Sensitivity analysis.
+- Visualization of MRI images, ground-truth masks, predicted masks and explainability heatmaps.
 - Model checkpoint saving and loading using PyTorch.
 
 ## Dataset
 
 **LGG MRI Segmentation Dataset**
 
-- Source: LGG MRI Segmentation dataset by Mateusz Buda et al.
-- Dataset collection: Kaggle (`mateuszbuda/lgg-mri-segmentation`).
+- Source: Mateusz Buda et al.
+- Platform: Kaggle.
+- Dataset identifier: `mateuszbuda/lgg-mri-segmentation`
 - Images: Brain MRI scans.
 - Annotations: Corresponding binary segmentation masks.
-- Input image dimensions: 256 × 256 pixels.
-- Input channels: 3.
+- Original image-mask pairs: 3,929.
+- Input resolution: 256 × 256 pixels.
+- Input channels: 3 (RGB).
 
-The dataset contains MRI images and corresponding masks organized into patient-specific folders.
+The dataset contains MRI images and their corresponding segmentation masks organized into patient-specific folders.
+
+For the final experimental pipeline, image-mask pairs with non-empty segmentation masks are retained.
+
+This results in 1,373 image-mask pairs.
+
+## Data Preprocessing
+
+The preprocessing pipeline includes:
+
+1. Loading MRI images and corresponding segmentation masks.
+2. Matching images with their respective mask files.
+3. Removing samples with empty segmentation masks.
+4. Resizing images and masks to 256 × 256 pixels.
+5. Normalizing image pixel values to the range [0, 1].
+6. Converting images into PyTorch tensors.
+7. Binarizing segmentation masks.
+8. Dividing the retained samples into training, validation and testing sets.
+
+### Dataset Split
+
+| Dataset | Samples |
+|---|---:|
+| Training | 961 |
+| Validation | 206 |
+| Testing | 206 |
+| **Total** | **1,373** |
+
+The split uses an image-level random split with `random_state=42` and an approximate 70:15:15 distribution.
+
+Note: This is not a patient-level split. Multiple slices from the same patient may appear across different subsets.
 
 ## Tech Stack
 
@@ -40,117 +81,166 @@ The dataset contains MRI images and corresponding masks organized into patient-s
 | Deep Learning | PyTorch |
 | Image Processing | OpenCV |
 | Numerical Computing | NumPy |
+| Data Splitting | Scikit-learn |
 | Visualization | Matplotlib |
-| Explainable AI | Grad-CAM |
+| Explainable AI | Grad-CAM, Occlusion Sensitivity |
 | Environment | Kaggle Notebooks |
 
 ## Model Architecture
 
-A custom U-Net architecture was implemented using PyTorch.
+A custom U-Net architecture is implemented using PyTorch.
 
-The architecture consists of:
+The network follows an encoder-decoder structure with skip connections.
 
-- **Encoder:** Extracts spatial features using convolutional layers and max pooling.
-- **Bottleneck:** Learns deeper representations.
+### Architecture Components
+
+- **Encoder:** Extracts hierarchical spatial features through convolutional blocks and max pooling.
+- **Bottleneck:** Learns deeper feature representations using additional convolutional layers.
 - **Decoder:** Reconstructs spatial information using transposed convolutions.
-- **Skip Connections:** Combine encoder and decoder features to preserve spatial details.
+- **Skip Connections:** Combine encoder and decoder feature maps to preserve spatial information.
 - **Output Layer:** Generates a single-channel segmentation map.
 
-Each convolutional block uses two convolutional layers followed by ReLU activation.
+Each convolutional block uses two convolutional layers, batch normalization and ReLU activation, followed by dropout.
+
+The network uses four encoder stages and a bottleneck, with corresponding decoder stages.
 
 ## Training Configuration
 
 | Parameter | Configuration |
 |---|---|
 | Architecture | Custom U-Net |
-| Input resolution | 256 × 256 |
-| Batch size | 8 |
+| Input Resolution | 256 × 256 |
+| Input Channels | 3 |
+| Output Channels | 1 |
+| Batch Size | 8 |
 | Optimizer | Adam |
-| Learning rate | 0.001 |
-| Loss function | BCE + Dice Loss |
-| Training epochs | 10 |
+| Learning Rate | 0.0001 |
+| Loss Function | Dice + BCE Loss |
+| BCE Weight | 0.5 |
+| Dice Loss Weight | 0.5 |
+| Training Epochs | 10 |
+| Prediction Threshold (evaluation) | 0.5 |
 | Framework | PyTorch |
 
-## Explainable AI: Grad-CAM
+The combined loss function is calculated as:
 
-Grad-CAM was incorporated to visualize the model's activation patterns.
+`Loss = 0.5 × BCE Loss + 0.5 × Dice Loss`
 
-The implementation uses forward and backward hooks to capture feature activations and gradients from an intermediate convolutional layer in the U-Net encoder.
+The best model checkpoint is selected based on validation loss.
 
-The resulting heatmap is visualized alongside:
+## Evaluation Metrics
 
-1. Original MRI image.
-2. Predicted segmentation mask.
-3. Grad-CAM activation map.
+The model is evaluated using:
 
-This provides an additional visual perspective on the model's internal feature responses.
+**1. Dice Coefficient**
 
-**Note:** Grad-CAM visualizations are exploratory explanations, not proof of clinical reasoning or model correctness.
+Measures the overlap between the predicted segmentation mask and the ground-truth mask.
+
+**2. Intersection over Union (IoU)**
+
+Measures the intersection between the predicted and ground-truth regions relative to their union.
 
 ## Results
 
-The notebook records the following training progress:
+The following results were recorded during evaluation on the held-out test DataLoader.
 
-| Epoch | Training Loss |
+| Metric | Recorded Result |
 |---|---:|
-| 1 | 0.8578 |
-| 2 | 0.7393 |
-| 3 | 0.7056 |
-| 4 | 0.6960 |
-| 5 | 0.6602 |
-| 6 | 0.6719 |
-| 7 | 0.6601 |
-| 8 | 0.6630 |
-| 9 | 0.6367 |
-| 10 | 0.6357 |
+| Mean Dice Score | 0.7783 |
+| Mean IoU Score | 0.6728 |
 
-**Recorded Dice score:** 0.8045
+The evaluation uses a prediction threshold of 0.5.
 
-The recorded Dice score was calculated on a batch sampled from the training DataLoader. It should therefore be interpreted as a training-batch result, not as an independent test-set performance measurement.
+These are experimental results from an image-level random split and should not be interpreted as patient-independent generalization performance.
+
+## Explainable AI
+
+Two visualization techniques are implemented to explore the model's prediction behavior.
+
+### 1. Grad-CAM
+
+Gradient-weighted Class Activation Mapping (Grad-CAM) is used to visualize gradient-based activation patterns.
+
+The implementation:
+
+- Uses the `enc4` encoder layer as the target layer.
+- Registers forward and backward hooks to capture feature activations and gradients.
+- Computes gradient-based weights.
+- Generates an activation heatmap.
+- Resizes the heatmap to the original input resolution.
+- Visualizes the heatmap and its overlay on the MRI image.
+
+### 2. Occlusion Sensitivity
+
+Occlusion Sensitivity is implemented to investigate how masking image regions affects model predictions.
+
+The implementation:
+
+- Uses a 16 × 16 pixel occlusion patch.
+- Moves the patch across the image with a stride of 16 pixels.
+- Replaces each selected image region with zeros.
+- Measures the change in mean predicted probability.
+- Constructs an occlusion heatmap from the resulting prediction differences.
+
+These techniques provide exploratory visual insights into model behavior. They do not establish clinical reasoning, explain causality or guarantee model correctness.
+
+## Model Checkpoint
+
+The trained model weights are saved as:
+
+`best_model.pth`
+
+The checkpoint corresponds to the model selected using validation loss.
 
 ## Project Structure
 
 ```text
-xai-brain-tumor-segmentation/
+brain-tumor-segmentation/
 │
-├── Miniproject_Final_Kaggle_Notebook.ipynb
+├── brain-mri-segmentation.ipynb
 ├── README.md
-└── unet_lgg_final.pth
+└── best_model.pth
 ```
 
-The model checkpoint is generated by the notebook. Include it in the repository only if you intend to distribute the trained weights.
+The model checkpoint should be included only if you intend to distribute the trained weights.
 
 ## How to Run
 
-### Option 1: Google Colab
+### Option 1: Kaggle Notebooks
 
-1. Open the notebook using the Open in Colab badge.
-2. Add the LGG MRI Segmentation dataset.
-3. Run the notebook cells in sequence.
-4. Train the U-Net model.
-5. Generate segmentation predictions and Grad-CAM visualizations.
+1. Open the notebook in Kaggle.
+2. Add the LGG MRI Segmentation Dataset.
+3. Execute the notebook cells in sequence.
+4. Run preprocessing and dataset splitting.
+5. Train the U-Net model.
+6. Evaluate the model using Dice and IoU.
+7. Generate segmentation predictions.
+8. Run Grad-CAM and Occlusion Sensitivity visualizations.
 
-### Option 2: Local Environment
+### Option 2: Google Colab
 
-Install the required dependencies:
+1. Upload the notebook to Google Colab.
+2. Download or connect the LGG MRI Segmentation Dataset.
+3. Update the dataset path.
+4. Execute the notebook cells in sequence.
+
+### Dependencies
 
 ```bash
 pip install torch torchvision
-pip install numpy opencv-python matplotlib
+pip install numpy opencv-python matplotlib scikit-learn
 ```
-
-Download the dataset and update the dataset path in the notebook to match your local directory structure.
-
-Run the notebook using Jupyter Notebook or JupyterLab.
 
 ## Limitations and Future Improvements
 
-- Introduce separate training, validation, and test datasets.
-- Evaluate performance on unseen MRI images.
-- Report additional segmentation metrics, including IoU and Dice score on the test set.
-- Explore different U-Net configurations and optimization strategies.
-- Compare Grad-CAM visualizations across different network layers.
-- Investigate additional explainability methods for medical image segmentation.
+- Implement patient-level dataset splitting to reduce potential data leakage.
+- Evaluate the model on an independent patient-level test set.
+- Explore additional U-Net configurations.
+- Experiment with data augmentation.
+- Compare different segmentation loss functions.
+- Investigate additional explainability methods.
+- Compare Grad-CAM and Occlusion Sensitivity across different MRI samples.
+- Evaluate the stability of explainability visualizations.
 
 ## Disclaimer
 
@@ -163,4 +253,3 @@ This project is an academic deep learning implementation for experimentation and
 M.Tech – Artificial Intelligence and Data Science
 
 GitHub: [@haliaayisha](https://github.com/haliaayisha)
-
